@@ -185,9 +185,7 @@ module ForemanAzureRm
             end
           end
           unless vm_hash[:availability_set_id].nil?
-            sub_resource = MsRestAzure::SubResource.new
-            sub_resource.id = vm_hash[:availability_set_id]
-            vm.availability_set = sub_resource
+            vm.availability_set = OpenStruct.new(id: vm_hash[:availability_set_id])
           end
 
           vm.os_profile = ComputeModels::OSProfile.new.tap do |os_profile|

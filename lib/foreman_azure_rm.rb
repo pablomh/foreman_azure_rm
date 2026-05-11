@@ -1,20 +1,42 @@
 require 'foreman_azure_rm/engine.rb'
-require 'azure_mgmt_resources'
-require 'azure_mgmt_network'
-require 'azure_mgmt_storage'
-require 'azure_mgmt_compute'
-require 'azure_mgmt_subscriptions'
 
 module ForemanAzureRm
-  Storage = Azure::Storage::Profiles::Latest::Mgmt
-  Network = Azure::Network::Profiles::Latest::Mgmt
-  Compute = Azure::Compute::Profiles::Latest::Mgmt
-  Resources = Azure::Resources::Profiles::Latest::Mgmt
-  Subscriptions = Azure::Subscriptions::Profiles::Latest::Mgmt
+  module ComputeModels
+    CachingTypes = OpenStruct.new(
+      None: 'None',
+      ReadOnly: 'ReadOnly',
+      ReadWrite: 'ReadWrite'
+    )
+    DiskCreateOption = OpenStruct.new(Empty: 'Empty')
+    DiskCreateOptionTypes = OpenStruct.new(FromImage: 'FromImage')
+    StorageAccountTypes = OpenStruct.new(
+      PremiumLRS: 'Premium_LRS',
+      StandardLRS: 'Standard_LRS'
+    )
+    VirtualMachine = OpenStruct
+    VirtualMachineExtension = OpenStruct
+    HardwareProfile = OpenStruct
+    OSProfile = OpenStruct
+    LinuxConfiguration = OpenStruct
+    SshConfiguration = OpenStruct
+    SshPublicKey = OpenStruct
+    StorageProfile = OpenStruct
+    OSDisk = OpenStruct
+    ManagedDiskParameters = OpenStruct
+    DataDisk = OpenStruct
+    ImageReference = OpenStruct
+    PurchasePlan = OpenStruct
+    NetworkInterfaceReference = OpenStruct
+    NetworkProfile = OpenStruct
+  end
 
-  StorageModels = Storage::Models
-  NetworkModels = Network::Models
-  ComputeModels = Compute::Models
-  ResourceModels = Resources::Models
-  SubscriptionModels = Subscriptions::Models
+  module NetworkModels
+    IPAllocationMethod = OpenStruct.new(
+      Dynamic: 'Dynamic',
+      Static: 'Static'
+    )
+    NetworkInterface = OpenStruct
+    NetworkInterfaceIPConfiguration = OpenStruct
+    PublicIPAddress = OpenStruct
+  end
 end

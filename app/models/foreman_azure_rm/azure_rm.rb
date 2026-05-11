@@ -172,15 +172,6 @@ module ForemanAzureRm
           return false
         end
       when 'gallery'
-        # Instead of the problematic line:
-        # gallery_images_list = sdk.list_resources(filter: "resourceType eq 'Microsoft.Compute/galleries/images'")
-        #
-        # The issue occurs with azure_mgmt_resources 0.18.2, where the resources.list method
-        # signature has changed from previous versions. In prior versions, this method accepted
-        # a filter parameter directly (resources.list(filter: "...")) but in version 0.18.2,
-        # the method doesn't accept any parameters, causing the "wrong number of arguments (given 1, expected 0)"
-        # error. This change in the Ruby SDK API is likely due to Azure REST API updates.
-
         begin
           # Extract gallery name and image name from gallery:// URL
           gallery_parts = image_id.split('/')
