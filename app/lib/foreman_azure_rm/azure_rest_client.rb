@@ -138,6 +138,7 @@ module ForemanAzureRm
 
     def poll_async_operation(response)
       poll_url = response['Azure-AsyncOperation'] || response['Location']
+      resource_url = response.uri.to_s
       return nil unless poll_url
 
       loop do
@@ -151,7 +152,8 @@ module ForemanAzureRm
         poll_json = JSON.parse(poll_response.body)
         status = poll_json['status']
         case status
-        when 'Succeeded' then return wrap_response(poll_json)
+        when 'Succeeded'
+          return request(:get, resource_url)
         when 'Failed', 'Canceled'
           raise AzureApiError.new("Async operation #{status}: #{poll_json.dig('error', 'message')}", 500)
         end
