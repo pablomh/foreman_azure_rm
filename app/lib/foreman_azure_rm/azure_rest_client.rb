@@ -126,6 +126,10 @@ module ForemanAzureRm
       case response
       when Net::HTTPAccepted
         poll_async_operation(response)
+      when Net::HTTPRedirection
+        redirect_url = response['Location']
+        raise AzureApiError.new("Unexpected redirect to #{redirect_url}", response.code.to_i) unless redirect_url
+        request(:get, redirect_url)
       when Net::HTTPSuccess
         return nil if response.body.nil? || response.body.empty?
         json = JSON.parse(response.body)

@@ -166,8 +166,11 @@ module ForemanAzureRm
       compute_post(rg_name, "virtualMachines/#{vm_name}/deallocate")
     end
 
+    MAX_GALLERY_CACHE_SIZE = 100
+
     def self.gallery_caching(rg_name)
       @gallery_caching ||= {}
+      @gallery_caching.shift if @gallery_caching.size > MAX_GALLERY_CACHE_SIZE
       @gallery_caching[rg_name] ||= {}
     end
 

@@ -240,8 +240,9 @@ module ForemanAzureRm
         cmd = vm_extension.settings&.command_to_execute
         return @script_command if cmd.blank? || cmd.ends_with?("waagent")
         if ssh_key_data.nil? && platform == 'Linux'
-          user_cmd_index = (cmd.index("-c") || 0) + 4
-          cmd[user_cmd_index..-2]
+          c_index = cmd.index("-c")
+          return cmd unless c_index
+          cmd[c_index + 4..-2]
         else
           cmd
         end
