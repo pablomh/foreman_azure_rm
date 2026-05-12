@@ -171,40 +171,40 @@ module ForemanAzureRm
         end
       when 'gallery'
         begin
-          # Extract gallery name and image name from gallery:// URL
           gallery_parts = image_id.split('/')
-
           if gallery_parts.length >= 2
             gallery_name = gallery_parts[0]
             image_name = gallery_parts[1]
+          else
+            # Short format: gallery://image_name (emitted by image_uuid)
+            image_name = image_id
+            gallery_name = nil
+          end
 
-            # Try to find the gallery and image using dedicated SDK methods
-            galleries = sdk.list_galleries
-            gallery = galleries.find { |g| g.name == gallery_name }
+          galleries = sdk.list_galleries
+          galleries_to_check = if gallery_name
+                                 galleries.select { |g| g.name == gallery_name }
+                               else
+                                 galleries
+                               end
 
-            if gallery
-              rg_name = gallery.id.split('/')[4] # Extract resource group name from gallery ID
+          galleries_to_check.each do |gallery|
+            rg_name = gallery.id.split('/')[4]
+            begin
+              gallery_image = sdk.get_gallery_image(rg_name, gallery.name, image_name)
+              next unless gallery_image
 
-              # Check if the image exists in the gallery
-              begin
-                gallery_image = sdk.get_gallery_image(rg_name, gallery_name, image_name)
+              image_versions = sdk.list_gallery_image_versions(rg_name, gallery.name, image_name)
+              target_regions = image_versions.flat_map do |image_version|
+                image_version.publishing_profile.target_regions.map(&:name)
+              end.uniq.map { |tgt_reg| tgt_reg.gsub(/\s+/, '').downcase }
 
-                if gallery_image
-                  # Check versions and regions
-                  image_versions = sdk.list_gallery_image_versions(rg_name, gallery_name, image_name)
-                  target_regions = image_versions.map do |image_version|
-                    image_version.publishing_profile.target_regions.map(&:name)
-                  end.flatten.uniq.map { |tgt_reg| tgt_reg.gsub(/\s+/, '').downcase }
-
-                  return true if target_regions.include? region
-                end
-              rescue StandardError => e
-                Rails.logger.warn("Gallery image check failed: #{e.message}")
-              end
+              return true if target_regions.include?(region)
+            rescue StandardError => e
+              Rails.logger.warn("Gallery image check failed for #{gallery.name}/#{image_name}: #{e.message}")
             end
           end
 
-          # If any problems occur, assume the image doesn't exist
           return false
         rescue StandardError => e
           Rails.logger.warn("Gallery check failed: #{e.message}")
@@ -372,9 +372,10 @@ module ForemanAzureRm
         nvidia_gpu_extension: ActiveRecord::Type::Boolean.new.deserialize(args[:nvidia_gpu_extension]),
         tags: args[:tags],
       )
-    rescue AzureRestClient::AzureApiError, RuntimeError => e
+    rescue ForemanAzureRm::AzureApiError, RuntimeError => e
       Foreman::Logging.exception('Unhandled AzureRm error', e)
-      destroy_vm(args[:vm_name]) if args[:vm_name]
+      nics&.each { |nic| sdk.delete_nic(args[:resource_group], nic.name) rescue nil }
+      destroy_vm(args[:vm_name]) rescue nil if args[:vm_name]
       raise e
     end
 
