@@ -376,21 +376,9 @@ module ForemanAzureRm
       )
     rescue ForemanAzureRm::AzureApiError, RuntimeError => e
       Foreman::Logging.exception('Unhandled AzureRm error', e)
-      begin
-        destroy_vm(args[:vm_name]) if args[:vm_name]
-      rescue StandardError => cleanup_err
-        logger.warn("VM cleanup failed: #{cleanup_err.message}")
-      end
-      nics&.each do |nic|
-        sdk.delete_nic(args[:resource_group], nic.name)
-      rescue StandardError => nic_err
-        logger.warn("NIC cleanup failed for #{nic.name}: #{nic_err.message}")
-      end
-      pips&.each do |pip|
-        sdk.delete_pip(args[:resource_group], pip.name)
-      rescue StandardError => pip_err
-        logger.warn("PIP cleanup failed for #{pip.name}: #{pip_err.message}")
-      end
+      best_effort("VM cleanup") { destroy_vm(args[:vm_name]) } if args[:vm_name]
+      nics&.each { |nic| best_effort("NIC #{nic.name}") { sdk.delete_nic(args[:resource_group], nic.name) } }
+      pips&.each { |pip| best_effort("PIP #{pip.name}") { sdk.delete_pip(args[:resource_group], pip.name) } }
       raise e
     end
 
@@ -420,6 +408,14 @@ module ForemanAzureRm
     rescue ActiveRecord::RecordNotFound
       logger.info "Could not find the selected vm."
       true
+    end
+
+    private
+
+    def best_effort(description)
+      yield
+    rescue StandardError => e
+      logger.warn("#{description} failed: #{e.message}")
     end
   end
 end

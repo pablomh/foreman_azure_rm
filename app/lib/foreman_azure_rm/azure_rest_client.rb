@@ -81,15 +81,18 @@ module ForemanAzureRm
       ensure_token
 
       uri = build_uri(path, api_version, params)
-      http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = true
-      http.open_timeout = 60
-      http.read_timeout = 300
-
       req = build_request(method, uri, body)
-      response = http.request(req)
+      response = build_http(uri, read_timeout: 300).request(req)
 
       handle_response(response)
+    end
+
+    def build_http(uri, read_timeout: 30)
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = true
+      http.open_timeout = 30
+      http.read_timeout = read_timeout
+      http
     end
 
     def build_uri(path, api_version, params)
@@ -157,13 +160,9 @@ module ForemanAzureRm
         sleep POLL_INTERVAL
         ensure_token
         uri = URI.parse(poll_url)
-        http = Net::HTTP.new(uri.host, uri.port)
-        http.use_ssl = true
-        http.open_timeout = 30
-        http.read_timeout = 30
         req = Net::HTTP::Get.new(uri)
         req['Authorization'] = "Bearer #{@token}"
-        poll_response = http.request(req)
+        poll_response = build_http(uri).request(req)
         unless poll_response.is_a?(Net::HTTPSuccess)
           raise AzureApiError.new("Async poll failed: HTTP #{poll_response.code} #{poll_response.body}", poll_response.code.to_i)
         end
@@ -183,10 +182,6 @@ module ForemanAzureRm
       return if @token && Time.now < @token_expires_at - 60
 
       uri = URI.parse("#{@ad_login_url}/#{@tenant}/oauth2/v2.0/token")
-      http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = true
-      http.open_timeout = 30
-      http.read_timeout = 30
       req = Net::HTTP::Post.new(uri)
       req.set_form_data(
         'grant_type' => 'client_credentials',
@@ -194,7 +189,7 @@ module ForemanAzureRm
         'client_secret' => @client_secret,
         'scope' => "#{@base_url}/.default"
       )
-      response = http.request(req)
+      response = build_http(uri).request(req)
       unless response.is_a?(Net::HTTPSuccess)
         raise AzureApiError.new("Token acquisition failed: #{response.body}", response.code.to_i)
       end
