@@ -18,6 +18,8 @@ module ForemanAzureRm
         ad_login: 'https://login.chinacloudapi.cn',
         resource_manager: 'https://management.chinacloudapi.cn',
       },
+      # Deprecated: Azure Germany closed on Oct 29, 2021.
+      # Kept for backward compatibility; will be removed in a future release.
       'azuregermancloud' => {
         ad_login: 'https://login.microsoftonline.de',
         resource_manager: 'https://management.microsoftazure.de',
@@ -72,6 +74,9 @@ module ForemanAzureRm
 
     private
 
+    # New Net::HTTP per request (no connection pooling). Acceptable for
+    # Foreman's Azure call volume; revisit with Net::HTTP::Persistent if
+    # latency becomes a concern.
     def request(method, path, api_version: nil, params: {}, body: nil)
       ensure_token
 
