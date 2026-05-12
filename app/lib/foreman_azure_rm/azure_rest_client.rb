@@ -119,12 +119,12 @@ module ForemanAzureRm
 
     def handle_response(response)
       case response
+      when Net::HTTPAccepted
+        poll_async_operation(response)
       when Net::HTTPSuccess
         return nil if response.body.nil? || response.body.empty?
         json = JSON.parse(response.body)
         wrap_response(json)
-      when Net::HTTPAccepted
-        poll_async_operation(response)
       else
         error = begin
                   JSON.parse(response.body)
