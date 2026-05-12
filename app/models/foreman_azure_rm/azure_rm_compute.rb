@@ -237,15 +237,13 @@ module ForemanAzureRm
 
     def script_command
       if vm_extension.present?
-        return @script_command if vm_extension.settings.command_to_execute.ends_with?("waagent")
-        # Index is based on script_command that is being injected
-        # from the code in #create_vm. It can be partly hard-coded
-        # since the command shall no change frequently.
+        cmd = vm_extension.settings&.command_to_execute
+        return @script_command if cmd.blank? || cmd.ends_with?("waagent")
         if ssh_key_data.nil? && platform == 'Linux'
-          user_cmd_index = (vm_extension.settings.command_to_execute.index("-c"))+ 4
-          script_command = vm_extension.settings.command_to_execute[user_cmd_index..-2]
+          user_cmd_index = (cmd.index("-c") || 0) + 4
+          cmd[user_cmd_index..-2]
         else
-          vm_extension.settings.command_to_execute
+          cmd
         end
       else
         @script_command
@@ -254,8 +252,8 @@ module ForemanAzureRm
 
     def script_uris
       if vm_extension.present?
-        return @script_uris unless vm_extension.settings.file_uris
-        script_uris = vm_extension.settings.file_uris
+        uris = vm_extension.settings&.file_uris
+        uris.present? ? uris : @script_uris
       else
         @script_uris
       end

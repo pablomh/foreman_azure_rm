@@ -102,8 +102,6 @@ module ForemanAzureRm
       errors[:user].empty? && errors[:password].empty? && errors[:uuid].empty? && errors[:app_ident].empty? && errors[:cloud].empty? && regions
     rescue StandardError => e
       errors[:base] << e.message
-    rescue Excon::Error::Socket => e
-      errors[:base] << e.message
     end
 
     def new_vm(args = {})
@@ -376,7 +374,7 @@ module ForemanAzureRm
       )
     rescue AzureRestClient::AzureApiError, RuntimeError => e
       Foreman::Logging.exception('Unhandled AzureRm error', e)
-      destroy_vm(vm.id) if vm&.respond_to?(:id)
+      destroy_vm(args[:vm_name]) if args[:vm_name]
       raise e
     end
 

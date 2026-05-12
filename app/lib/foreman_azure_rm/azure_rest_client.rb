@@ -173,6 +173,8 @@ module ForemanAzureRm
       uri = URI.parse("#{@ad_login_url}/#{@tenant}/oauth2/v2.0/token")
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = true
+      http.open_timeout = 30
+      http.read_timeout = 30
       req = Net::HTTP::Post.new(uri)
       req.set_form_data(
         'grant_type' => 'client_credentials',
