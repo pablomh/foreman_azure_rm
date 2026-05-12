@@ -122,6 +122,7 @@ module ForemanAzureRm
 
       def create_nics(region, args = {})
         nics               = []
+        pips               = []
         args[:interfaces_attributes].each do |nic, attrs|
           private_ip = ActiveRecord::Type::Boolean.new.deserialize(attrs[:private_ip])
           priv_ip_alloc       = if private_ip
@@ -148,6 +149,7 @@ module ForemanAzureRm
             pip = sdk.create_or_update_pip(args[:resource_group],
                                            "#{args[:vm_name]}-pip#{nic}",
                                            public_ip_params)
+            pips << pip
           end
           new_nic = sdk.create_or_update_nic(
             args[:resource_group],
@@ -167,7 +169,7 @@ module ForemanAzureRm
           )
           nics << new_nic
         end
-        nics
+        { nics: nics, pips: pips }
       end
 
       def initialize_vm(vm_hash)
