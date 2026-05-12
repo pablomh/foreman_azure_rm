@@ -126,8 +126,8 @@ module ForemanAzureRm
                              os_disk_size_gb: opts[:os_disk_size_gb],
                              nvidia_gpu_extension: opts[:nvidia_gpu_extension],
                             )
+      ifaces = []
       if opts[:interfaces].present?
-        ifaces = []
         opts[:interfaces].each_with_index do |iface_attrs, i|
           ifaces << new_interface(iface_attrs)
         end

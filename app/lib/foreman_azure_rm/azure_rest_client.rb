@@ -160,6 +160,9 @@ module ForemanAzureRm
         req = Net::HTTP::Get.new(uri)
         req['Authorization'] = "Bearer #{@token}"
         poll_response = http.request(req)
+        unless poll_response.is_a?(Net::HTTPSuccess)
+          raise AzureApiError.new("Async poll failed: HTTP #{poll_response.code} #{poll_response.body}", poll_response.code.to_i)
+        end
         poll_json = JSON.parse(poll_response.body) rescue {}
         status = poll_json['status']
         case status
