@@ -317,12 +317,12 @@ module ForemanAzureRm
       args = args.to_h.deep_symbolize_keys
       args[:vm_name] = args[:name].split('.')[0]
       nics = create_nics(region, args)
+      vm = nil
+      user_command = args[:script_command]
 
       if args[:platform] == 'Linux'
         if args[:password].present? && !args[:ssh_key_data].present?
           if args[:script_command].present?
-            # to run the script_cmd given through form as username
-            user_command = args[:script_command]
             args[:script_command] = "su - \"#{args[:username]}\" -c \"#{user_command}\""
           end
           disable_password_auth = false
@@ -374,9 +374,9 @@ module ForemanAzureRm
         nvidia_gpu_extension: ActiveRecord::Type::Boolean.new.deserialize(args[:nvidia_gpu_extension]),
         tags: args[:tags],
       )
-    rescue RuntimeError => e
+    rescue AzureRestClient::AzureApiError, RuntimeError => e
       Foreman::Logging.exception('Unhandled AzureRm error', e)
-      destroy_vm vm.id if vm
+      destroy_vm(vm.id) if vm&.respond_to?(:id)
       raise e
     end
 

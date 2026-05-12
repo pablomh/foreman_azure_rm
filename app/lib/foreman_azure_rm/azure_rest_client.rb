@@ -136,20 +136,26 @@ module ForemanAzureRm
       end
     end
 
+    MAX_POLL_ATTEMPTS = 360
+    POLL_INTERVAL = 5
+
     def poll_async_operation(response)
       poll_url = response['Azure-AsyncOperation'] || response['Location']
       resource_url = response.uri.to_s
       return nil unless poll_url
 
-      loop do
-        sleep 2
+      MAX_POLL_ATTEMPTS.times do |attempt|
+        sleep POLL_INTERVAL
+        ensure_token
         uri = URI.parse(poll_url)
         http = Net::HTTP.new(uri.host, uri.port)
         http.use_ssl = true
+        http.open_timeout = 30
+        http.read_timeout = 30
         req = Net::HTTP::Get.new(uri)
         req['Authorization'] = "Bearer #{@token}"
         poll_response = http.request(req)
-        poll_json = JSON.parse(poll_response.body)
+        poll_json = JSON.parse(poll_response.body) rescue {}
         status = poll_json['status']
         case status
         when 'Succeeded'
@@ -158,6 +164,7 @@ module ForemanAzureRm
           raise AzureApiError.new("Async operation #{status}: #{poll_json.dig('error', 'message')}", 500)
         end
       end
+      raise AzureApiError.new("Async operation timed out after #{MAX_POLL_ATTEMPTS * POLL_INTERVAL} seconds", 504)
     end
 
     def ensure_token
