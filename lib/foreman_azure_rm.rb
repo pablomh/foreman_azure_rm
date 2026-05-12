@@ -13,21 +13,6 @@ module ForemanAzureRm
       PremiumLRS: 'Premium_LRS',
       StandardLRS: 'Standard_LRS'
     )
-    VirtualMachine = OpenStruct
-    VirtualMachineExtension = OpenStruct
-    HardwareProfile = OpenStruct
-    OSProfile = OpenStruct
-    LinuxConfiguration = OpenStruct
-    SshConfiguration = OpenStruct
-    SshPublicKey = OpenStruct
-    StorageProfile = OpenStruct
-    OSDisk = OpenStruct
-    ManagedDiskParameters = OpenStruct
-    DataDisk = OpenStruct
-    ImageReference = OpenStruct
-    PurchasePlan = OpenStruct
-    NetworkInterfaceReference = OpenStruct
-    NetworkProfile = OpenStruct
   end
 
   module NetworkModels
@@ -35,8 +20,5 @@ module ForemanAzureRm
       Dynamic: 'Dynamic',
       Static: 'Static'
     )
-    NetworkInterface = OpenStruct
-    NetworkInterfaceIPConfiguration = OpenStruct
-    PublicIPAddress = OpenStruct
   end
 end
