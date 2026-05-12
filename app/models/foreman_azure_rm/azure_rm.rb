@@ -376,9 +376,21 @@ module ForemanAzureRm
       )
     rescue ForemanAzureRm::AzureApiError, RuntimeError => e
       Foreman::Logging.exception('Unhandled AzureRm error', e)
-      destroy_vm(args[:vm_name]) rescue nil if args[:vm_name]
-      nics&.each { |nic| sdk.delete_nic(args[:resource_group], nic.name) rescue nil }
-      pips&.each { |pip| sdk.delete_pip(args[:resource_group], pip.name) rescue nil }
+      begin
+        destroy_vm(args[:vm_name]) if args[:vm_name]
+      rescue StandardError => cleanup_err
+        logger.warn("VM cleanup failed: #{cleanup_err.message}")
+      end
+      nics&.each do |nic|
+        sdk.delete_nic(args[:resource_group], nic.name)
+      rescue StandardError => nic_err
+        logger.warn("NIC cleanup failed for #{nic.name}: #{nic_err.message}")
+      end
+      pips&.each do |pip|
+        sdk.delete_pip(args[:resource_group], pip.name)
+      rescue StandardError => pip_err
+        logger.warn("PIP cleanup failed for #{pip.name}: #{pip_err.message}")
+      end
       raise e
     end
 
