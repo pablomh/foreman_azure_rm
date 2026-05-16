@@ -199,12 +199,15 @@ module ForemanAzureRm
       if image.id.nil?
         return "marketplace://#{image.publisher}:#{image.offer}:#{image.sku}:#{image.version}"
       else
-        image_rg = image.id.split('/')[4]
-        image_name = image.id.split('/')[-1]
+        parts = image.id.split('/')
+        image_rg = parts[4]
+        image_name = parts[-1]
+        if image.id.include?('/galleries/')
+          gallery_name = parts[8]
+          return "gallery://#{image_rg}/#{gallery_name}/#{image_name}"
+        end
         if sdk.list_custom_images.find { |custom_img| custom_img.name == image_name }
           return "custom://#{image_name}"
-        elsif sdk.fetch_gallery_image_id(image_rg, image_name)
-          return "gallery://#{image_name}"
         end
       end
     end

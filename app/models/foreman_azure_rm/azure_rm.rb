@@ -51,7 +51,9 @@ module ForemanAzureRm
     end
 
     def sdk
-      @sdk ||= ForemanAzureRm::AzureSdkAdapter.new(tenant, app_ident, secret_key, sub_id, azure_environment)
+      @sdk ||= ForemanAzureRm::AzureSdkAdapter.new(tenant, app_ident, secret_key, sub_id, azure_environment,
+                                                     proxy_url: connection_options[:proxy],
+                                                     ssl_cert_store: connection_options[:ssl_cert_store])
     end
 
     def to_label
@@ -90,7 +92,7 @@ module ForemanAzureRm
 
     def regions
       return unless sub_id.present?
-      sdk.list_regions(sub_id).value.map { |loc| [loc.display_name, loc.name] }
+      (sdk.list_regions(sub_id).value || []).map { |loc| [loc.display_name, loc.name] }
     end
 
     def resource_groups
@@ -171,44 +173,25 @@ module ForemanAzureRm
         end
       when 'gallery'
         begin
-          gallery_parts = image_id.split('/')
-          if gallery_parts.length >= 2
-            gallery_name = gallery_parts[0]
-            image_name = gallery_parts[1]
-          else
-            # Short format: gallery://image_name (emitted by image_uuid)
-            image_name = image_id
-            gallery_name = nil
-          end
+          resolved_id = sdk.fetch_gallery_image_id(nil, image_id)
+          return false unless resolved_id
 
-          galleries = sdk.list_galleries
-          galleries_to_check = if gallery_name
-                                 galleries.select { |g| g.name == gallery_name }
-                               else
-                                 galleries
-                               end
+          id_parts = resolved_id.split('/')
+          rg_name = id_parts[4]
+          gallery_name = id_parts[8]
+          image_name = id_parts[-1]
 
-          galleries_to_check.each do |gallery|
-            rg_name = gallery.id.split('/')[4]
-            begin
-              gallery_image = sdk.get_gallery_image(rg_name, gallery.name, image_name)
-              next unless gallery_image
+          image_versions = sdk.list_gallery_image_versions(rg_name, gallery_name, image_name)
+          target_regions = image_versions.flat_map do |image_version|
+            (image_version.publishing_profile&.target_regions || []).map(&:name)
+          end.uniq.map { |tgt_reg| tgt_reg.gsub(/\s+/, '').downcase }
 
-              image_versions = sdk.list_gallery_image_versions(rg_name, gallery.name, image_name)
-              target_regions = image_versions.flat_map do |image_version|
-                image_version.publishing_profile.target_regions.map(&:name)
-              end.uniq.map { |tgt_reg| tgt_reg.gsub(/\s+/, '').downcase }
-
-              return true if target_regions.include?(region)
-            rescue StandardError => e
-              Rails.logger.warn("Gallery image check failed for #{gallery.name}/#{image_name}: #{e.message}")
-            end
-          end
-
-          return false
+          target_regions.include?(region)
+        rescue ArgumentError => e
+          raise e
         rescue StandardError => e
           Rails.logger.warn("Gallery check failed: #{e.message}")
-          return false
+          false
         end
       when 'custom'
         custom_image = sdk.list_custom_images.detect { |custom_img| custom_img.name == image_id && custom_img.location == region }

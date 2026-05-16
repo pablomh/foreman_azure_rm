@@ -1,7 +1,5 @@
-require 'net/http'
 require 'json'
 require 'uri'
-require 'ostruct'
 
 module ForemanAzureRm
   class AzureRestClient
@@ -18,8 +16,6 @@ module ForemanAzureRm
         ad_login: 'https://login.chinacloudapi.cn',
         resource_manager: 'https://management.chinacloudapi.cn',
       },
-      # Deprecated: Azure Germany closed on Oct 29, 2021.
-      # Kept for backward compatibility; will be removed in a future release.
       'azuregermancloud' => {
         ad_login: 'https://login.microsoftonline.de',
         resource_manager: 'https://management.microsoftazure.de',
@@ -28,7 +24,7 @@ module ForemanAzureRm
 
     attr_reader :subscription_id
 
-    def initialize(tenant:, client_id:, client_secret:, subscription_id:, azure_environment: 'azure')
+    def initialize(tenant:, client_id:, client_secret:, subscription_id:, azure_environment: 'azure', proxy_url: nil, ssl_cert_store: nil)
       @tenant = tenant
       @client_id = client_id
       @client_secret = client_secret
@@ -39,6 +35,12 @@ module ForemanAzureRm
       @base_url = env[:resource_manager]
       @token = nil
       @token_expires_at = Time.at(0)
+      @transport = AzureHttpTransport.new(
+        proxy_uri: URI.parse(proxy_url || ENV['https_proxy'] || ENV['HTTPS_PROXY'] || ''),
+        ssl_cert_store: ssl_cert_store
+      )
+      @translator = AzureShapeTranslator.new
+      @poller = AzureAsyncPoller.new { |url| authenticated_get(url) }
     end
 
     def get(path, api_version:, params: {})
@@ -61,7 +63,7 @@ module ForemanAzureRm
       results = []
       loop do
         response = get(path, api_version: api_version, params: params)
-        items = response.respond_to?(:value) ? response.value : []
+        items = response.respond_to?(:value) ? (response.value || []) : []
         results.concat(items)
         next_link = response.respond_to?(:next_link) ? response.next_link : nil
         break unless next_link
@@ -74,170 +76,101 @@ module ForemanAzureRm
 
     private
 
-    # New Net::HTTP per request (no connection pooling). Acceptable for
-    # Foreman's Azure call volume; revisit with Net::HTTP::Persistent if
-    # latency becomes a concern.
     def request(method, path, api_version: nil, params: {}, body: nil)
       ensure_token
+      url = build_url(path, api_version, params)
+      headers = auth_headers
+      headers['Content-Type'] = 'application/json'
+      headers['Accept'] = 'application/json'
+      serialized = body ? @translator.serialize_request(body) : nil
 
-      uri = build_uri(path, api_version, params)
-      req = build_request(method, uri, body)
-      response = build_http(uri, read_timeout: 300).request(req)
-
-      handle_response(response)
+      response = @transport.request(method: method, url: url, headers: headers, body: serialized)
+      handle_response(response, method, url)
     end
 
-    def build_http(uri, read_timeout: 30)
-      http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = true
-      http.open_timeout = 30
-      http.read_timeout = read_timeout
-      http
+    def handle_response(response, method, resource_url)
+      if response.accepted? || response.created?
+        if response.header('Azure-AsyncOperation') || response.header('Location')
+          raw = @poller.poll(response, resource_url: resource_url, method: method)
+          return nil if method == :delete
+          return parse_body(raw) if raw
+        end
+        parse_body(response)
+      elsif response.redirect?
+        redirect_url = response.header('Location')
+        raise AzureApiError.new("Unexpected redirect to #{redirect_url}", response.status) unless redirect_url
+        request(:get, redirect_url)
+      elsif response.success?
+        if response.header('Azure-AsyncOperation')
+          raw = @poller.poll(response, resource_url: resource_url, method: method)
+          return nil if method == :delete
+          return parse_body(raw) if raw
+        end
+        parse_body(response)
+      else
+        raise_api_error(response)
+      end
     end
 
-    def build_uri(path, api_version, params)
+    def parse_body(response)
+      return nil if response.body.nil? || response.body.empty?
+      json = JSON.parse(response.body)
+      @translator.normalize_response(json)
+    end
+
+    def raise_api_error(response)
+      error = begin
+                JSON.parse(response.body)
+              rescue StandardError
+                { 'error' => { 'message' => response.body } }
+              end
+      err = error.dig('error', 'message') || error.dig('error', 'code') || "HTTP #{response.status}"
+      raise AzureApiError.new("Azure API error #{response.status}: #{err}", response.status)
+    end
+
+    def build_url(path, api_version, params)
       url = path.start_with?('http') ? path : "#{@base_url}#{path}"
       uri = URI.parse(url)
       query = URI.decode_www_form(uri.query || '')
       query << ['api-version', api_version] if api_version
       params.each { |k, v| query << [k.to_s, v.to_s] }
       uri.query = URI.encode_www_form(query)
-      uri
+      uri.to_s
     end
 
-    def build_request(method, uri, body)
-      klass = { get: Net::HTTP::Get, post: Net::HTTP::Post,
-                 put: Net::HTTP::Put, delete: Net::HTTP::Delete }.fetch(method)
-      req = klass.new(uri)
-      req['Authorization'] = "Bearer #{@token}"
-      req['Content-Type'] = 'application/json'
-      req['Accept'] = 'application/json'
-      req.body = serialize_body(body) if body
-      req
+    def auth_headers
+      { 'Authorization' => "Bearer #{@token}" }
     end
 
-    def serialize_body(body)
-      case body
-      when String then body
-      when OpenStruct then deep_camelize_keys(body.to_h).to_json
-      when Hash then deep_camelize_keys(body).to_json
-      else body.to_json
-      end
+    def authenticated_get(url)
+      ensure_token
+      @transport.request(method: :get, url: url, headers: auth_headers, read_timeout: 30)
     end
 
-    def handle_response(response)
-      case response
-      when Net::HTTPAccepted
-        poll_async_operation(response)
-      when Net::HTTPRedirection
-        redirect_url = response['Location']
-        raise AzureApiError.new("Unexpected redirect to #{redirect_url}", response.code.to_i) unless redirect_url
-        request(:get, redirect_url)
-      when Net::HTTPSuccess
-        return nil if response.body.nil? || response.body.empty?
-        json = JSON.parse(response.body)
-        wrap_response(json)
-      else
-        error = begin
-                  JSON.parse(response.body)
-                rescue StandardError
-                  { 'error' => { 'message' => response.body } }
-                end
-        err = error.dig('error', 'message') || error.dig('error', 'code') || response.message
-        raise AzureApiError.new("Azure API error #{response.code}: #{err}", response.code.to_i)
-      end
-    end
-
-    MAX_POLL_ATTEMPTS = 360
-    POLL_INTERVAL = 5
-
-    def poll_async_operation(response)
-      poll_url = response['Azure-AsyncOperation'] || response['Location']
-      resource_url = response.uri.to_s
-      return nil unless poll_url
-
-      MAX_POLL_ATTEMPTS.times do |attempt|
-        sleep POLL_INTERVAL
-        ensure_token
-        uri = URI.parse(poll_url)
-        req = Net::HTTP::Get.new(uri)
-        req['Authorization'] = "Bearer #{@token}"
-        poll_response = build_http(uri).request(req)
-        unless poll_response.is_a?(Net::HTTPSuccess)
-          raise AzureApiError.new("Async poll failed: HTTP #{poll_response.code} #{poll_response.body}", poll_response.code.to_i)
-        end
-        poll_json = JSON.parse(poll_response.body) rescue {}
-        status = poll_json['status']
-        case status
-        when 'Succeeded'
-          return request(:get, resource_url)
-        when 'Failed', 'Canceled'
-          raise AzureApiError.new("Async operation #{status}: #{poll_json.dig('error', 'message')}", 500)
-        end
-      end
-      raise AzureApiError.new("Async operation timed out after #{MAX_POLL_ATTEMPTS * POLL_INTERVAL} seconds", 504)
-    end
+    # --- Auth ---
 
     def ensure_token
       return if @token && Time.now < @token_expires_at - 60
 
-      uri = URI.parse("#{@ad_login_url}/#{@tenant}/oauth2/v2.0/token")
-      req = Net::HTTP::Post.new(uri)
-      req.set_form_data(
-        'grant_type' => 'client_credentials',
-        'client_id' => @client_id,
-        'client_secret' => @client_secret,
-        'scope' => "#{@base_url}/.default"
+      url = "#{@ad_login_url}/#{@tenant}/oauth2/v2.0/token"
+      response = @transport.request(
+        method: :post,
+        url: url,
+        headers: { 'Content-Type' => 'application/x-www-form-urlencoded' },
+        body: URI.encode_www_form(
+          'grant_type' => 'client_credentials',
+          'client_id' => @client_id,
+          'client_secret' => @client_secret,
+          'scope' => "#{@base_url}/.default"
+        ),
+        read_timeout: 30
       )
-      response = build_http(uri).request(req)
-      unless response.is_a?(Net::HTTPSuccess)
-        raise AzureApiError.new("Token acquisition failed: #{response.body}", response.code.to_i)
+      unless response.success?
+        raise AzureApiError.new("Token acquisition failed: #{response.body}", response.status)
       end
       token_data = JSON.parse(response.body)
       @token = token_data['access_token']
       @token_expires_at = Time.now + token_data['expires_in'].to_i
-    end
-
-    def wrap_response(data)
-      case data
-      when Hash then deep_to_ostruct(deep_underscore_keys(data))
-      when Array then data.map { |item| wrap_response(item) }
-      else data
-      end
-    end
-
-    def deep_to_ostruct(hash)
-      converted = hash.transform_values do |v|
-        case v
-        when Hash then deep_to_ostruct(v)
-        when Array then v.map { |item| item.is_a?(Hash) ? deep_to_ostruct(item) : item }
-        else v
-        end
-      end
-      OpenStruct.new(converted)
-    end
-
-    def deep_underscore_keys(hash)
-      hash.each_with_object({}) do |(k, v), result|
-        new_key = k.to_s.underscore
-        result[new_key] = case v
-                          when Hash then deep_underscore_keys(v)
-                          when Array then v.map { |item| item.is_a?(Hash) ? deep_underscore_keys(item) : item }
-                          else v
-                          end
-      end
-    end
-
-    def deep_camelize_keys(hash)
-      hash.each_with_object({}) do |(k, v), result|
-        new_key = k.to_s.camelize(:lower)
-        result[new_key] = case v
-                          when Hash then deep_camelize_keys(v)
-                          when Array then v.map { |item| item.is_a?(Hash) ? deep_camelize_keys(item) : item }
-                          when OpenStruct then deep_camelize_keys(v.to_h)
-                          else v
-                          end
-      end
     end
   end
 

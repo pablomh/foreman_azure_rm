@@ -9,14 +9,16 @@ module ForemanAzureRm
       subscriptions: '2022-12-01',
     }
 
-    def initialize(tenant, app_ident, secret_key, sub_id, azure_environment)
+    def initialize(tenant, app_ident, secret_key, sub_id, azure_environment, proxy_url: nil, ssl_cert_store: nil)
       @sub_id = sub_id
       @client = AzureRestClient.new(
         tenant: tenant,
         client_id: app_ident,
         client_secret: secret_key,
         subscription_id: sub_id,
-        azure_environment: azure_environment
+        azure_environment: azure_environment,
+        proxy_url: proxy_url,
+        ssl_cert_store: ssl_cert_store
       )
     end
 
@@ -150,7 +152,7 @@ module ForemanAzureRm
     end
 
     def get_status(virtual_machine)
-      statuses = virtual_machine.properties&.instance_view&.statuses || []
+      statuses = virtual_machine.instance_view&.statuses || []
       statuses.each do |status|
         return status.code.split('/')[1] if status.code.include?('PowerState')
       end
@@ -168,21 +170,41 @@ module ForemanAzureRm
 
     MAX_GALLERY_CACHE_SIZE = 100
 
-    def self.gallery_caching(rg_name)
-      @gallery_caching ||= {}
-      @gallery_caching.shift if @gallery_caching.size > MAX_GALLERY_CACHE_SIZE
-      @gallery_caching[rg_name] ||= {}
+    def self.gallery_cache(subscription_id)
+      @gallery_cache ||= {}
+      @gallery_cache[subscription_id] ||= {}
+      @gallery_cache[subscription_id].shift if @gallery_cache[subscription_id].size > MAX_GALLERY_CACHE_SIZE
+      @gallery_cache[subscription_id]
     end
 
-    def actual_gallery_image_id(rg_name, image_id)
-      gallery_names = list_galleries.map(&:name)
-      return unless (gallery = gallery_names.first)
-      gallery_image = list_gallery_images(rg_name, gallery).detect { |image| image.name == image_id }
-      gallery_image&.id
+    def actual_gallery_image_id(_rg_name, image_id)
+      parts = image_id.split('/')
+      case parts.length
+      when 3
+        rg, gallery_name, image_name = parts
+        gallery_image = list_gallery_images(rg, gallery_name).detect { |img| img.name == image_name }
+        gallery_image&.id
+      when 2
+        gallery_name, image_name = parts
+        matches = list_galleries.select { |g| g.name == gallery_name }.filter_map do |gallery|
+          gallery_rg = gallery.resource_group || gallery.id&.split('/')&.dig(4)
+          list_gallery_images(gallery_rg, gallery_name).detect { |img| img.name == image_name }
+        end
+        raise ArgumentError, "Gallery image '#{image_id}' is ambiguous across resource groups; use gallery://<resource_group>/#{image_id}" if matches.length > 1
+        matches.first&.id
+      when 1
+        image_name = parts[0]
+        matches = list_galleries.filter_map do |gallery|
+          gallery_rg = gallery.resource_group || gallery.id&.split('/')&.dig(4)
+          list_gallery_images(gallery_rg, gallery.name).detect { |img| img.name == image_name }
+        end
+        raise ArgumentError, "Gallery image '#{image_name}' is ambiguous; use gallery://<resource_group>/<gallery>/#{image_name}" if matches.length > 1
+        matches.first&.id
+      end
     end
 
-    def fetch_gallery_image_id(rg_name, image_id)
-      AzureSdkAdapter.gallery_caching(rg_name)[image_id] ||= actual_gallery_image_id(rg_name, image_id)
+    def fetch_gallery_image_id(_rg_name, image_id)
+      AzureSdkAdapter.gallery_cache(@sub_id)[image_id] ||= actual_gallery_image_id(nil, image_id)
     end
 
     private
