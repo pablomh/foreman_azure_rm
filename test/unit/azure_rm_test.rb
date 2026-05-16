@@ -53,8 +53,8 @@ class ForemanAzureRmTest < ActiveSupport::TestCase
       assert_equal "rg1", actual_server.resource_group
       assert actual_server.password.present?
       assert_equal 1, actual_server.interfaces.count
-      refute actual_server.azure_vm.disable_password_authentication
-      refute actual_server.azure_vm.os_profile.custom_data.present?
+      assert_not actual_server.azure_vm.disable_password_authentication
+      assert_not actual_server.azure_vm.os_profile.custom_data.present?
     end
 
     test "create vm with password, custom data and vm extension" do
@@ -72,7 +72,7 @@ class ForemanAzureRmTest < ActiveSupport::TestCase
 
       assert_equal "testpswd123", actual_server.password
       assert actual_server.azure_vm.os_profile.custom_data.present?
-      refute actual_server.azure_vm.disable_password_authentication
+      assert_not actual_server.azure_vm.disable_password_authentication
     end
 
     test "create vm with sshkey and without custom data" do
@@ -84,7 +84,7 @@ class ForemanAzureRmTest < ActiveSupport::TestCase
       actual_server = @azure_cr.create_vm(vm_args)
 
       assert actual_server.azure_vm.disable_password_authentication
-      refute actual_server.azure_vm.os_profile.custom_data.present?
+      assert_not actual_server.azure_vm.os_profile.custom_data.present?
     end
 
     test "create vm with sshkey, custom data and vm extension" do
@@ -132,7 +132,7 @@ class ForemanAzureRmTest < ActiveSupport::TestCase
       vm_args = base_vm_args.merge(with_password_auth).merge(with_gallery_image)
       actual_server = @azure_cr.create_vm(vm_args)
 
-      refute actual_server.azure_vm.disable_password_authentication
+      assert_not actual_server.azure_vm.disable_password_authentication
       assert_equal "testpswd123", actual_server.password
       assert_equal "gallery://rg1/first_gallery/first_gallery_img", actual_server.image_id
     end

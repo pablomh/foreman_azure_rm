@@ -23,7 +23,7 @@ class AzureSdkAdapterTest < ActiveSupport::TestCase
 
   test "resolves canonical 3-part gallery image ID directly" do
     gallery_arm_id = '/subscriptions/sub/resourceGroups/rg1/providers/Microsoft.Compute/galleries/mygallery/images/myimage'
-    mock_image = OpenStruct.new(name: 'myimage', id: gallery_arm_id)
+    mock_image = stub(name: 'myimage', id: gallery_arm_id)
     @test_adapter.expects(:list_gallery_images).with('rg1', 'mygallery').returns([mock_image])
 
     result = @test_adapter.send(:actual_gallery_image_id, nil, 'rg1/mygallery/myimage')
@@ -31,8 +31,8 @@ class AzureSdkAdapterTest < ActiveSupport::TestCase
   end
 
   test "resolves 2-part gallery image ID when unique" do
-    gallery = OpenStruct.new(name: 'mygallery', resource_group: 'rg1', id: '/subscriptions/sub/resourceGroups/rg1/providers/Microsoft.Compute/galleries/mygallery')
-    mock_image = OpenStruct.new(name: 'myimage', id: '/subscriptions/sub/resourceGroups/rg1/providers/Microsoft.Compute/galleries/mygallery/images/myimage')
+    gallery = stub(name: 'mygallery', resource_group: 'rg1', id: '/subscriptions/sub/resourceGroups/rg1/providers/Microsoft.Compute/galleries/mygallery')
+    mock_image = stub(name: 'myimage', id: '/subscriptions/sub/resourceGroups/rg1/providers/Microsoft.Compute/galleries/mygallery/images/myimage')
     @test_adapter.expects(:list_galleries).returns([gallery])
     @test_adapter.expects(:list_gallery_images).with('rg1', 'mygallery').returns([mock_image])
 
@@ -41,10 +41,10 @@ class AzureSdkAdapterTest < ActiveSupport::TestCase
   end
 
   test "raises on ambiguous 1-part gallery image ID" do
-    gallery1 = OpenStruct.new(name: 'gallery1', resource_group: 'rg1', id: '/subscriptions/sub/resourceGroups/rg1/providers/Microsoft.Compute/galleries/gallery1')
-    gallery2 = OpenStruct.new(name: 'gallery2', resource_group: 'rg2', id: '/subscriptions/sub/resourceGroups/rg2/providers/Microsoft.Compute/galleries/gallery2')
-    img1 = OpenStruct.new(name: 'shared-img', id: 'id1')
-    img2 = OpenStruct.new(name: 'shared-img', id: 'id2')
+    gallery1 = stub(name: 'gallery1', resource_group: 'rg1', id: '/subscriptions/sub/resourceGroups/rg1/providers/Microsoft.Compute/galleries/gallery1')
+    gallery2 = stub(name: 'gallery2', resource_group: 'rg2', id: '/subscriptions/sub/resourceGroups/rg2/providers/Microsoft.Compute/galleries/gallery2')
+    img1 = stub(name: 'shared-img', id: 'id1')
+    img2 = stub(name: 'shared-img', id: 'id2')
     @test_adapter.expects(:list_galleries).returns([gallery1, gallery2])
     @test_adapter.expects(:list_gallery_images).with('rg1', 'gallery1').returns([img1])
     @test_adapter.expects(:list_gallery_images).with('rg2', 'gallery2').returns([img2])
@@ -63,15 +63,15 @@ class AzureSdkAdapterTest < ActiveSupport::TestCase
 
     assert_equal 'arm-id-a', ForemanAzureRm::AzureSdkAdapter.gallery_cache(sub_a)['myimage']
     assert_equal 'arm-id-b', ForemanAzureRm::AzureSdkAdapter.gallery_cache(sub_b)['myimage']
-    refute_equal ForemanAzureRm::AzureSdkAdapter.gallery_cache(sub_a)['myimage'],
-                 ForemanAzureRm::AzureSdkAdapter.gallery_cache(sub_b)['myimage']
+    assert_not_equal ForemanAzureRm::AzureSdkAdapter.gallery_cache(sub_a)['myimage'],
+                     ForemanAzureRm::AzureSdkAdapter.gallery_cache(sub_b)['myimage']
   end
 
   test "raises on ambiguous 2-part gallery image ID across resource groups" do
-    gallery_rg1 = OpenStruct.new(name: 'shared-gallery', resource_group: 'rg1', id: '/subscriptions/sub/resourceGroups/rg1/providers/Microsoft.Compute/galleries/shared-gallery')
-    gallery_rg2 = OpenStruct.new(name: 'shared-gallery', resource_group: 'rg2', id: '/subscriptions/sub/resourceGroups/rg2/providers/Microsoft.Compute/galleries/shared-gallery')
-    img1 = OpenStruct.new(name: 'myimage', id: 'id1')
-    img2 = OpenStruct.new(name: 'myimage', id: 'id2')
+    gallery_rg1 = stub(name: 'shared-gallery', resource_group: 'rg1', id: '/subscriptions/sub/resourceGroups/rg1/providers/Microsoft.Compute/galleries/shared-gallery')
+    gallery_rg2 = stub(name: 'shared-gallery', resource_group: 'rg2', id: '/subscriptions/sub/resourceGroups/rg2/providers/Microsoft.Compute/galleries/shared-gallery')
+    img1 = stub(name: 'myimage', id: 'id1')
+    img2 = stub(name: 'myimage', id: 'id2')
     @test_adapter.expects(:list_galleries).returns([gallery_rg1, gallery_rg2])
     @test_adapter.expects(:list_gallery_images).with('rg1', 'shared-gallery').returns([img1])
     @test_adapter.expects(:list_gallery_images).with('rg2', 'shared-gallery').returns([img2])

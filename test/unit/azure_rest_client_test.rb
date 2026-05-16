@@ -61,13 +61,13 @@ class AzureRestClientTest < ActiveSupport::TestCase
         'hardwareProfile' => { 'vmSize' => 'Standard_B2s' },
         'storageProfile' => {
           'osDisk' => { 'diskSizeGB' => 30, 'osType' => 'Linux', 'caching' => 'ReadWrite' },
-          'imageReference' => { 'publisher' => 'Canonical', 'offer' => 'UbuntuServer', 'sku' => '18.04-LTS', 'version' => 'latest' },
+          'imageReference' => { 'publisher' => 'Canonical', 'offer' => 'UbuntuServer', 'sku' => '18.04-LTS', 'version' => 'latest' }
         },
         'osProfile' => { 'adminUsername' => 'azureuser' },
         'networkProfile' => {
-          'networkInterfaces' => [{ 'id' => '/subscriptions/test-sub/resourceGroups/my-rg/providers/Microsoft.Network/networkInterfaces/nic0' }],
-        },
-      },
+          'networkInterfaces' => [{ 'id' => '/subscriptions/test-sub/resourceGroups/my-rg/providers/Microsoft.Network/networkInterfaces/nic0' }]
+        }
+      }
     }
 
     stub_request(:get, "#{@base_url}/test?api-version=2023-01-01")
@@ -98,10 +98,10 @@ class AzureRestClientTest < ActiveSupport::TestCase
             'privateIPAllocationMethod' => 'Dynamic',
             'publicIPAddress' => { 'id' => '/subscriptions/test-sub/resourceGroups/my-rg/providers/Microsoft.Network/publicIPAddresses/pip0' },
             'subnet' => { 'id' => '/subscriptions/test-sub/resourceGroups/my-rg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/default' },
-            'primary' => true,
-          },
-        }],
-      },
+            'primary' => true
+          }
+        }]
+      }
     }
 
     stub_request(:get, "#{@base_url}/test?api-version=2023-01-01")
@@ -115,7 +115,7 @@ class AzureRestClientTest < ActiveSupport::TestCase
     assert_equal '10.0.0.4', ip_config.private_ipaddress
     assert_equal 'Dynamic', ip_config.private_ipallocation_method
     assert ip_config.public_ipaddress.id.include?('pip0')
-    assert_equal true, ip_config.primary
+    assert ip_config.primary
   end
 
   test "raises AzureApiError on 4xx/5xx" do
@@ -150,7 +150,7 @@ class AzureRestClientTest < ActiveSupport::TestCase
       end
       .to_return(body: '{}', headers: { 'Content-Type' => 'application/json' })
 
-    body = OpenStruct.new(vm_size: 'Standard_A0')
+    body = { vm_size: 'Standard_A0' }
     @client.put('/test', body, api_version: '2023-01-01')
 
     assert_requested :put, "#{@base_url}/test?api-version=2023-01-01"
@@ -160,18 +160,18 @@ class AzureRestClientTest < ActiveSupport::TestCase
     stub_request(:put, /#{@base_url}/)
       .to_return(body: '{}', headers: { 'Content-Type' => 'application/json' })
 
-    vm = OpenStruct.new(
+    vm = {
       location: 'eastus',
       tags: { 'env' => 'test' },
-      hardware_profile: OpenStruct.new(vm_size: 'Standard_B2s'),
-      storage_profile: OpenStruct.new(
-        os_disk: OpenStruct.new(disk_size_gb: 30, create_option: 'FromImage')
-      ),
-      os_profile: OpenStruct.new(admin_username: 'azureuser', admin_password: 'secret'),
-      network_profile: OpenStruct.new(
-        network_interfaces: [OpenStruct.new(id: '/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/networkInterfaces/nic0', primary: true)]
-      ),
-    )
+      hardware_profile: { vm_size: 'Standard_B2s' },
+      storage_profile: {
+        os_disk: { disk_size_gb: 30, create_option: 'FromImage' }
+      },
+      os_profile: { admin_username: 'azureuser', admin_password: 'secret' },
+      network_profile: {
+        network_interfaces: [{ id: '/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/networkInterfaces/nic0', primary: true }]
+      }
+    }
     @client.put('/test', vm, api_version: '2023-01-01')
 
     assert_requested :put, /#{@base_url}/ do |req|
@@ -184,7 +184,7 @@ class AzureRestClientTest < ActiveSupport::TestCase
       assert_equal 'azureuser', body.dig('properties', 'osProfile', 'adminUsername')
       nic_ref = body.dig('properties', 'networkProfile', 'networkInterfaces', 0)
       assert nic_ref['id'].include?('nic0')
-      assert_equal true, nic_ref.dig('properties', 'primary')
+      assert nic_ref.dig('properties', 'primary')
     end
   end
 
@@ -192,18 +192,18 @@ class AzureRestClientTest < ActiveSupport::TestCase
     stub_request(:put, /#{@base_url}/)
       .to_return(body: '{}', headers: { 'Content-Type' => 'application/json' })
 
-    nic = OpenStruct.new(
+    nic = {
       location: 'eastus',
       ip_configurations: [
-        OpenStruct.new(
+        {
           name: 'ipconfig1',
           private_ipallocation_method: 'Dynamic',
           private_ipaddress: '10.0.0.4',
-          public_ipaddress: OpenStruct.new(id: '/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip0'),
-          subnet: OpenStruct.new(id: '/sub/net'),
-        ),
-      ],
-    )
+          public_ipaddress: { id: '/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip0' },
+          subnet: { id: '/sub/net' }
+        }
+      ]
+    }
     @client.put('/test', nic, api_version: '2023-01-01')
 
     assert_requested :put, /#{@base_url}/ do |req|
@@ -222,7 +222,7 @@ class AzureRestClientTest < ActiveSupport::TestCase
     stub_request(:put, /#{@base_url}/)
       .to_return(body: '{}', headers: { 'Content-Type' => 'application/json' })
 
-    pip = OpenStruct.new(location: 'eastus', public_ipallocation_method: 'Static')
+    pip = { location: 'eastus', public_ipallocation_method: 'Static' }
     @client.put('/test', pip, api_version: '2023-01-01')
 
     assert_requested :put, /#{@base_url}/ do |req|
@@ -236,14 +236,14 @@ class AzureRestClientTest < ActiveSupport::TestCase
     stub_request(:put, /#{@base_url}/)
       .to_return(body: '{}', headers: { 'Content-Type' => 'application/json' })
 
-    ext = OpenStruct.new(
+    ext = {
       location: 'eastus',
       publisher: 'Microsoft.Azure.Extensions',
       virtual_machine_extension_type: 'CustomScript',
       type_handler_version: '2.0',
       auto_upgrade_minor_version: true,
-      settings: { 'commandToExecute' => 'echo hello' },
-    )
+      settings: { 'commandToExecute' => 'echo hello' }
+    }
     @client.put('/test', ext, api_version: '2023-01-01')
 
     assert_requested :put, /#{@base_url}/ do |req|
@@ -252,7 +252,7 @@ class AzureRestClientTest < ActiveSupport::TestCase
       assert_equal 'Microsoft.Azure.Extensions', body.dig('properties', 'publisher')
       assert_equal 'CustomScript', body.dig('properties', 'type')
       assert_equal '2.0', body.dig('properties', 'typeHandlerVersion')
-      assert_equal true, body.dig('properties', 'autoUpgradeMinorVersion')
+      assert body.dig('properties', 'autoUpgradeMinorVersion')
       assert_equal 'echo hello', body.dig('properties', 'settings', 'commandToExecute')
     end
   end
@@ -265,8 +265,8 @@ class AzureRestClientTest < ActiveSupport::TestCase
         body: {
           'value' => [
             { 'id' => '/subscriptions/test-sub/resourceGroups/rg-a/providers/Microsoft.Network/virtualNetworks/vnet1', 'name' => 'vnet1', 'location' => 'eastus' },
-            { 'id' => '/subscriptions/test-sub/resourceGroups/rg-b/providers/Microsoft.Network/virtualNetworks/vnet2', 'name' => 'vnet2', 'location' => 'westus' },
-          ],
+            { 'id' => '/subscriptions/test-sub/resourceGroups/rg-b/providers/Microsoft.Network/virtualNetworks/vnet2', 'name' => 'vnet2', 'location' => 'westus' }
+          ]
         }.to_json,
         headers: { 'Content-Type' => 'application/json' }
       )
@@ -504,6 +504,6 @@ class AzureRestClientTest < ActiveSupport::TestCase
 
     results = @client.get_paged('/items', api_version: '2023-01-01')
 
-    assert_equal [], results
+    assert_empty results
   end
 end
