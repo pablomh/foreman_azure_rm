@@ -73,7 +73,7 @@ module ForemanAzureRm
       id = hash['id']
       if id.is_a?(String) && id.include?('/resourceGroups/')
         parts = id.split('/')
-        rg_index = parts.index { |p| p.casecmp('resourceGroups').zero? }
+        rg_index = parts.index { |p| p.casecmp?('resourceGroups') }
         hash['resource_group'] = parts[rg_index + 1] if rg_index
       end
       hash.transform_values do |v|
