@@ -43,7 +43,7 @@ module ForemanAzureRm
       http.read_timeout = read_timeout
 
       klass = { get: Net::HTTP::Get, post: Net::HTTP::Post,
-                 put: Net::HTTP::Put, delete: Net::HTTP::Delete }.fetch(method)
+                put: Net::HTTP::Put, delete: Net::HTTP::Delete }.fetch(method)
       req = klass.new(uri)
       headers.each { |k, v| req[k] = v }
       req.body = body if body

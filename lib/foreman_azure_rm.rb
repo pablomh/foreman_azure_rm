@@ -3,26 +3,29 @@ require 'foreman_azure_rm/engine.rb'
 module ForemanAzureRm
   module ComputeModels
     module CachingTypes
-      None = 'None'
-      ReadOnly = 'ReadOnly'
-      ReadWrite = 'ReadWrite'
+      None = 'None'.freeze
+      ReadOnly = 'ReadOnly'.freeze
+      ReadWrite = 'ReadWrite'.freeze
     end
+
     module DiskCreateOption
-      Empty = 'Empty'
+      Empty = 'Empty'.freeze
     end
+
     module DiskCreateOptionTypes
-      FromImage = 'FromImage'
+      FromImage = 'FromImage'.freeze
     end
+
     module StorageAccountTypes
-      PremiumLRS = 'Premium_LRS'
-      StandardLRS = 'Standard_LRS'
+      PremiumLRS = 'Premium_LRS'.freeze
+      StandardLRS = 'Standard_LRS'.freeze
     end
   end
 
   module NetworkModels
     module IPAllocationMethod
-      Dynamic = 'Dynamic'
-      Static = 'Static'
+      Dynamic = 'Dynamic'.freeze
+      Static = 'Static'.freeze
     end
   end
 end

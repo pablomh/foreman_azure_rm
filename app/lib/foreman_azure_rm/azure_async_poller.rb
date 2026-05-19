@@ -14,10 +14,10 @@ module ForemanAzureRm
       location_url = response.header('Location')
       return nil unless async_url || location_url
 
-      deadline = Time.now + MAX_POLL_SECONDS
+      deadline = Time.zone.now + MAX_POLL_SECONDS
       last_response = response
-      while Time.now < deadline
-        interval = (last_response.header('Retry-After')&.to_i || DEFAULT_POLL_INTERVAL)
+      while Time.zone.now < deadline
+        interval = last_response.header('Retry-After')&.to_i || DEFAULT_POLL_INTERVAL
         sleep interval
 
         poll_url = async_url || location_url
@@ -35,23 +35,19 @@ module ForemanAzureRm
     private
 
     def handle_async_operation_poll(poll_response, resource_url, method)
-      unless poll_response.success?
-        raise AzureApiError.new("Async poll failed: HTTP #{poll_response.status} #{poll_response.body}", poll_response.status)
-      end
+      raise AzureApiError.new("Async poll failed: HTTP #{poll_response.status} #{poll_response.body}", poll_response.status) unless poll_response.success?
       poll_json = begin
-                    JSON.parse(poll_response.body)
-                  rescue JSON::ParserError, TypeError => e
-                    raise AzureApiError.new("Async poll returned non-JSON body: #{poll_response.body&.truncate(200)}", poll_response.status)
-                  end
+        JSON.parse(poll_response.body)
+      rescue JSON::ParserError, TypeError
+        raise AzureApiError.new("Async poll returned non-JSON body: #{poll_response.body&.truncate(200)}", poll_response.status)
+      end
       status = poll_json['status']
       raise AzureApiError.new("Async poll response missing 'status' field: #{poll_response.body&.truncate(200)}", poll_response.status) unless status
       case status
       when 'Succeeded'
         return poll_response if method == :delete
         result = @authenticated_get.call(resource_url)
-        unless result.success?
-          raise AzureApiError.new("Final resource fetch failed after async Succeeded: HTTP #{result.status} #{result.body&.truncate(200)}", result.status)
-        end
+        raise AzureApiError.new("Final resource fetch failed after async Succeeded: HTTP #{result.status} #{result.body&.truncate(200)}", result.status) unless result.success?
         result
       when 'Failed', 'Canceled'
         raise AzureApiError.new("Async operation #{status}: #{poll_json.dig('error', 'message')}", 500)

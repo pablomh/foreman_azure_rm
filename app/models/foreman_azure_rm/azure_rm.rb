@@ -7,6 +7,7 @@ module ForemanAzureRm
   class AzureRm < ComputeResource
 
     include VMExtensions::ManagedVM
+
     alias_attribute :sub_id, :user
     alias_attribute :secret_key, :password
     alias_attribute :region, :url
@@ -103,7 +104,7 @@ module ForemanAzureRm
       super
       errors[:user].empty? && errors[:password].empty? && errors[:uuid].empty? && errors[:app_ident].empty? && errors[:cloud].empty? && regions
     rescue StandardError => e
-      errors[:base] << e.message
+      errors.add(:base, e.message)
     end
 
     def new_vm(args = {})
@@ -111,7 +112,7 @@ module ForemanAzureRm
       opts = vm_instance_defaults.merge(args.to_h).deep_symbolize_keys
       # convert rails nested_attributes into a plain hash
       [:interfaces, :volumes].each do |collection|
-        nested_args = opts.delete("#{collection}_attributes".to_sym)
+        nested_args = opts.delete(:"#{collection}_attributes")
         opts[collection] = nested_attributes_for(collection, nested_args) if nested_args
       end
       opts.reject! { |k, v| v.nil? }

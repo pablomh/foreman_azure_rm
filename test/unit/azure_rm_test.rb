@@ -3,6 +3,7 @@ require_relative '../azure_rm_test_helper'
 
 class ForemanAzureRmTest < ActiveSupport::TestCase
   include AzureRmTestHelper
+
   setup do
     @mock_sdk = mock('mock_sdk')
     ForemanAzureRm::AzureRm.any_instance.stubs(:sdk).returns(@mock_sdk)
@@ -26,13 +27,15 @@ class ForemanAzureRmTest < ActiveSupport::TestCase
     cloud = %w[azure azureusgovernment azurechina azuregermancloud].sample
     ForemanAzureRm::AzureRm.any_instance.stubs(:validate_cloud?).returns(true)
     @azure_cr.cloud=(cloud)
-    assert @azure_cr.validate_cloud?
+
+    assert_predicate @azure_cr, :validate_cloud?
   end
 
   test "list all resource groups" do
     mock_resource_client = mock('mock_resource_client')
     @mock_sdk.stubs(:resource_client).returns(mock_resource_client)
     @mock_sdk.stubs(:rgs).returns(['rg1', 'rg2', 'rg3'])
+
     assert ['rg1', 'rg2', 'rg3'], @azure_cr.resource_groups
   end
 
@@ -51,7 +54,7 @@ class ForemanAzureRmTest < ActiveSupport::TestCase
 
       assert_equal "ervin-golomb", actual_server.name
       assert_equal "rg1", actual_server.resource_group
-      assert actual_server.password.present?
+      assert_predicate actual_server.password, :present?
       assert_equal 1, actual_server.interfaces.count
       assert_not actual_server.azure_vm.disable_password_authentication
       assert_not actual_server.azure_vm.os_profile.custom_data.present?
@@ -71,7 +74,7 @@ class ForemanAzureRmTest < ActiveSupport::TestCase
       actual_server = @azure_cr.create_vm(vm_args)
 
       assert_equal "testpswd123", actual_server.password
-      assert actual_server.azure_vm.os_profile.custom_data.present?
+      assert_predicate actual_server.azure_vm.os_profile.custom_data, :present?
       assert_not actual_server.azure_vm.disable_password_authentication
     end
 
@@ -101,7 +104,7 @@ class ForemanAzureRmTest < ActiveSupport::TestCase
       actual_server = @azure_cr.create_vm(vm_args)
 
       assert actual_server.azure_vm.disable_password_authentication
-      assert actual_server.azure_vm.os_profile.custom_data.present?
+      assert_predicate actual_server.azure_vm.os_profile.custom_data, :present?
     end
 
     test "create vm with custom image and sshkey" do

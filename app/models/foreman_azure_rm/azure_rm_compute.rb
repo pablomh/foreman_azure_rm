@@ -20,7 +20,6 @@ module ForemanAzureRm
                    script_uris: nil,
                    nvidia_gpu_extension: false,
                    tags: [])
-
       @azure_vm = azure_vm
       @sdk = sdk
       @resource_group ||= resource_group
@@ -40,9 +39,7 @@ module ForemanAzureRm
       @azure_vm.storage_profile.os_disk.managed_disk ||= OpenStruct.new
     end
 
-    def id
-      @azure_vm.id
-    end
+    delegate :id, to: :@azure_vm
 
     def persisted?
       !!identity && !!id
@@ -245,7 +242,7 @@ module ForemanAzureRm
         if ssh_key_data.nil? && platform == 'Linux'
           c_index = cmd.index("-c")
           return cmd unless c_index
-          cmd[c_index + 4..-2]
+          cmd[(c_index + 4)..-2]
         else
           cmd
         end
@@ -257,18 +254,14 @@ module ForemanAzureRm
     def script_uris
       if vm_extension.present?
         uris = vm_extension.settings&.file_uris
-        uris.present? ? uris : @script_uris
+        uris.presence || @script_uris
       else
         @script_uris
       end
     end
 
     def nvidia_gpu_extension
-      if vm_nvidia_gpu_extension.present?
-        true
-      else
-        @nvidia_gpu_extension
-      end
+      vm_nvidia_gpu_extension.present? || @nvidia_gpu_extension
     end
 
   end

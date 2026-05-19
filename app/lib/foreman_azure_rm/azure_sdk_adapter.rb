@@ -7,7 +7,7 @@ module ForemanAzureRm
       storage: '2023-01-01',
       resources: '2021-04-01',
       subscriptions: '2022-12-01',
-    }
+    }.freeze
 
     def initialize(tenant, app_ident, secret_key, sub_id, azure_environment, proxy_url: nil, ssl_cert_store: nil)
       @sub_id = sub_id

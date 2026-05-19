@@ -27,6 +27,7 @@ class AzureSdkAdapterTest < ActiveSupport::TestCase
     @test_adapter.expects(:list_gallery_images).with('rg1', 'mygallery').returns([mock_image])
 
     result = @test_adapter.send(:actual_gallery_image_id, nil, 'rg1/mygallery/myimage')
+
     assert_equal gallery_arm_id, result
   end
 
@@ -37,6 +38,7 @@ class AzureSdkAdapterTest < ActiveSupport::TestCase
     @test_adapter.expects(:list_gallery_images).with('rg1', 'mygallery').returns([mock_image])
 
     result = @test_adapter.send(:actual_gallery_image_id, nil, 'mygallery/myimage')
+
     assert_match(/myimage$/, result)
   end
 
@@ -64,7 +66,7 @@ class AzureSdkAdapterTest < ActiveSupport::TestCase
     assert_equal 'arm-id-a', ForemanAzureRm::AzureSdkAdapter.gallery_cache(sub_a)['myimage']
     assert_equal 'arm-id-b', ForemanAzureRm::AzureSdkAdapter.gallery_cache(sub_b)['myimage']
     assert_not_equal ForemanAzureRm::AzureSdkAdapter.gallery_cache(sub_a)['myimage'],
-                     ForemanAzureRm::AzureSdkAdapter.gallery_cache(sub_b)['myimage']
+      ForemanAzureRm::AzureSdkAdapter.gallery_cache(sub_b)['myimage']
   end
 
   test "raises on ambiguous 2-part gallery image ID across resource groups" do

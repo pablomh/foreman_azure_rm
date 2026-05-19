@@ -44,7 +44,7 @@ module ForemanAzureRm
         unless data_disks.nil?
           disks = []
           disk_count = 0
-          data_disks.each do |disk_num, attrs|
+          data_disks.each_value do |attrs|
             managed_data_disk = OpenStruct.new
             disk = OpenStruct.new
             disk.name = "#{vm_name}-data-disk#{disk_count}"
@@ -186,9 +186,7 @@ module ForemanAzureRm
               vm.tags[kv[0].strip] = kv[1].strip
             end
           end
-          unless vm_hash[:availability_set_id].nil?
-            vm.availability_set = OpenStruct.new(id: vm_hash[:availability_set_id])
-          end
+          vm.availability_set = OpenStruct.new(id: vm_hash[:availability_set_id]) unless vm_hash[:availability_set_id].nil?
 
           vm.os_profile = OpenStruct.new.tap do |os_profile|
             os_profile.computer_name  = vm_hash[:name]

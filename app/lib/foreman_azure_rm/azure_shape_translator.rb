@@ -10,7 +10,7 @@ module ForemanAzureRm
       'public_i_p_address' => 'public_ipaddress',
       'public_i_p_allocation_method' => 'public_ipallocation_method',
       'private_i_p_address' => 'private_ipaddress',
-      'private_i_p_allocation_method' => 'private_ipallocation_method'
+      'private_i_p_allocation_method' => 'private_ipallocation_method',
     }.freeze
 
     def normalize_response(data)
@@ -31,7 +31,7 @@ module ForemanAzureRm
       'disk_size_gb' => 'diskSizeGB',
       'virtual_machine_extension_type' => 'type',
       'ip_configurations' => 'ipConfigurations',
-      'ip_address' => 'ipAddress'
+      'ip_address' => 'ipAddress',
     }.freeze
 
     ARM_TOP_LEVEL_FIELDS = %w[location tags name id plan sku zones identity kind].freeze
@@ -69,9 +69,7 @@ module ForemanAzureRm
     end
 
     def flatten_and_enrich(hash)
-      if hash.key?('properties') && hash['properties'].is_a?(Hash)
-        hash = hash.merge(hash.delete('properties'))
-      end
+      hash = hash.merge(hash.delete('properties')) if hash.key?('properties') && hash['properties'].is_a?(Hash)
       id = hash['id']
       if id.is_a?(String) && id.include?('/resourceGroups/')
         parts = id.split('/')

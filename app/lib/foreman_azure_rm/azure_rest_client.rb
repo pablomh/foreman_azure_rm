@@ -20,7 +20,7 @@ module ForemanAzureRm
         ad_login: 'https://login.microsoftonline.de',
         resource_manager: 'https://management.microsoftazure.de',
       },
-    }
+    }.freeze
 
     attr_reader :subscription_id
 
@@ -34,7 +34,7 @@ module ForemanAzureRm
       @ad_login_url = env[:ad_login]
       @base_url = env[:resource_manager]
       @token = nil
-      @token_expires_at = Time.at(0)
+      @token_expires_at = Time.zone.at(0)
       @transport = AzureHttpTransport.new(
         proxy_uri: URI.parse(proxy_url || ENV['https_proxy'] || ENV['HTTPS_PROXY'] || ''),
         ssl_cert_store: ssl_cert_store
@@ -113,17 +113,17 @@ module ForemanAzureRm
     end
 
     def parse_body(response)
-      return nil if response.body.nil? || response.body.empty?
+      return nil if response.body.blank?
       json = JSON.parse(response.body)
       @translator.normalize_response(json)
     end
 
     def raise_api_error(response)
       error = begin
-                JSON.parse(response.body)
-              rescue StandardError
-                { 'error' => { 'message' => response.body } }
-              end
+        JSON.parse(response.body)
+      rescue StandardError
+        { 'error' => { 'message' => response.body } }
+      end
       err = error.dig('error', 'message') || error.dig('error', 'code') || "HTTP #{response.status}"
       raise AzureApiError.new("Azure API error #{response.status}: #{err}", response.status)
     end
@@ -150,7 +150,7 @@ module ForemanAzureRm
     # --- Auth ---
 
     def ensure_token
-      return if @token && Time.now < @token_expires_at - 60
+      return if @token && Time.zone.now < @token_expires_at - 60
 
       url = "#{@ad_login_url}/#{@tenant}/oauth2/v2.0/token"
       response = @transport.request(
@@ -165,12 +165,10 @@ module ForemanAzureRm
         ),
         read_timeout: 30
       )
-      unless response.success?
-        raise AzureApiError.new("Token acquisition failed: #{response.body}", response.status)
-      end
+      raise AzureApiError.new("Token acquisition failed: #{response.body}", response.status) unless response.success?
       token_data = JSON.parse(response.body)
       @token = token_data['access_token']
-      @token_expires_at = Time.now + token_data['expires_in'].to_i
+      @token_expires_at = Time.zone.now + token_data['expires_in'].to_i
     end
   end
 
