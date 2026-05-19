@@ -14,9 +14,9 @@ module ForemanAzureRm
       location_url = response.header('Location')
       return nil unless async_url || location_url
 
-      deadline = Time.zone.now + MAX_POLL_SECONDS
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + MAX_POLL_SECONDS
       last_response = response
-      while Time.zone.now < deadline
+      while Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
         interval = last_response.header('Retry-After')&.to_i || DEFAULT_POLL_INTERVAL
         sleep interval
 

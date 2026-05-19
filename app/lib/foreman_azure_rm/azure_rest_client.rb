@@ -34,7 +34,7 @@ module ForemanAzureRm
       @ad_login_url = env[:ad_login]
       @base_url = env[:resource_manager]
       @token = nil
-      @token_expires_at = Time.zone.at(0)
+      @token_expires_at = 0
       @transport = AzureHttpTransport.new(
         proxy_uri: URI.parse(proxy_url || ENV['https_proxy'] || ENV['HTTPS_PROXY'] || ''),
         ssl_cert_store: ssl_cert_store
@@ -150,7 +150,7 @@ module ForemanAzureRm
     # --- Auth ---
 
     def ensure_token
-      return if @token && Time.zone.now < @token_expires_at - 60
+      return if @token && Process.clock_gettime(Process::CLOCK_MONOTONIC) < @token_expires_at - 60
 
       url = "#{@ad_login_url}/#{@tenant}/oauth2/v2.0/token"
       response = @transport.request(
@@ -168,7 +168,7 @@ module ForemanAzureRm
       raise AzureApiError.new("Token acquisition failed: #{response.body}", response.status) unless response.success?
       token_data = JSON.parse(response.body)
       @token = token_data['access_token']
-      @token_expires_at = Time.zone.now + token_data['expires_in'].to_i
+      @token_expires_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) + token_data['expires_in'].to_i
     end
   end
 
