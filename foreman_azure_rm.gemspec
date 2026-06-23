@@ -17,4 +17,6 @@ Gem::Specification.new do |s|
   s.add_dependency 'azure_mgmt_storage', '~> 0.23.0'
   s.add_dependency 'azure_mgmt_compute', '~> 0.22.0'
   s.add_dependency 'azure_mgmt_subscriptions', '~> 0.18.5'
+  s.add_dependency 'faraday', '~> 2.0'
+  s.add_dependency 'faraday-net_http'
 end

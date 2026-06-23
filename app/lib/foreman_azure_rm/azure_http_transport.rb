@@ -1,4 +1,5 @@
-require 'net/http'
+require 'faraday'
+require 'faraday/net_http'
 require 'uri'
 
 module ForemanAzureRm
@@ -36,28 +37,25 @@ module ForemanAzureRm
 
     def request(method:, url:, headers: {}, body: nil, open_timeout: 30, read_timeout: 300)
       uri = URI.parse(url)
-      http = Net::HTTP.new(uri.host, uri.port, @proxy_uri.host, @proxy_uri.port, @proxy_uri.user, @proxy_uri.password)
-      http.use_ssl = true
-      http.cert_store = @ssl_cert_store if @ssl_cert_store
-      http.open_timeout = open_timeout
-      http.read_timeout = read_timeout
-
-      klass = { get: Net::HTTP::Get, post: Net::HTTP::Post,
-                put: Net::HTTP::Put, delete: Net::HTTP::Delete }.fetch(method)
-      req = klass.new(uri)
-      headers.each { |k, v| req[k] = v }
-      req.body = body if body
-
-      raw = http.request(req)
+      raw = connection_for(uri, open_timeout: open_timeout, read_timeout: read_timeout)
+        .run_request(method, uri.request_uri, body, headers)
       to_response(raw)
     end
 
     private
 
+    def connection_for(uri, open_timeout:, read_timeout:)
+      Faraday.new(url: "#{uri.scheme}://#{uri.host}:#{uri.port}") do |faraday|
+        faraday.proxy = @proxy_uri.to_s if @proxy_uri.host
+        faraday.ssl.cert_store = @ssl_cert_store if @ssl_cert_store
+        faraday.options.open_timeout = open_timeout
+        faraday.options.timeout = read_timeout
+        faraday.adapter :net_http
+      end
+    end
+
     def to_response(raw)
-      hdrs = {}
-      raw.each_header { |k, v| hdrs[k] = v }
-      Response.new(status: raw.code.to_i, headers: hdrs, body: raw.body)
+      Response.new(status: raw.status.to_i, headers: raw.headers.to_h, body: raw.body)
     end
   end
 end
