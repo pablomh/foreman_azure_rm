@@ -11,7 +11,7 @@ module ForemanAzureRm
 
     delegate :name, to: :azure_vm, allow_nil: true
 
-    def initialize(azure_vm: ComputeModels::VirtualMachine.new,
+    def initialize(azure_vm: OpenStruct.new,
                    sdk: nil,
                    resource_group: azure_vm.resource_group,
                    nics: [],
@@ -20,7 +20,6 @@ module ForemanAzureRm
                    script_uris: nil,
                    nvidia_gpu_extension: false,
                    tags: [])
-
       @azure_vm = azure_vm
       @sdk = sdk
       @resource_group ||= resource_group
@@ -30,19 +29,17 @@ module ForemanAzureRm
       @script_uris ||= script_uris
       @nvidia_gpu_extension ||= nvidia_gpu_extension
       @tags ||= tags
-      @azure_vm.hardware_profile ||= ComputeModels::HardwareProfile.new
-      @azure_vm.os_profile ||= ComputeModels::OSProfile.new
-      @azure_vm.os_profile.linux_configuration ||= ComputeModels::LinuxConfiguration.new
-      @azure_vm.os_profile.linux_configuration.ssh ||= ComputeModels::SshConfiguration.new
-      @azure_vm.os_profile.linux_configuration.ssh.public_keys ||= [ComputeModels::SshPublicKey.new]
-      @azure_vm.storage_profile ||= ComputeModels::StorageProfile.new
-      @azure_vm.storage_profile.os_disk ||= ComputeModels::OSDisk.new
-      @azure_vm.storage_profile.os_disk.managed_disk ||= ComputeModels::ManagedDiskParameters.new
+      @azure_vm.hardware_profile ||= OpenStruct.new
+      @azure_vm.os_profile ||= OpenStruct.new
+      @azure_vm.os_profile.linux_configuration ||= OpenStruct.new
+      @azure_vm.os_profile.linux_configuration.ssh ||= OpenStruct.new
+      @azure_vm.os_profile.linux_configuration.ssh.public_keys ||= [OpenStruct.new]
+      @azure_vm.storage_profile ||= OpenStruct.new
+      @azure_vm.storage_profile.os_disk ||= OpenStruct.new
+      @azure_vm.storage_profile.os_disk.managed_disk ||= OpenStruct.new
     end
 
-    def id
-      @azure_vm.id
-    end
+    delegate :id, to: :@azure_vm
 
     def persisted?
       !!identity && !!id
@@ -264,11 +261,7 @@ module ForemanAzureRm
     end
 
     def nvidia_gpu_extension
-      if vm_nvidia_gpu_extension.present?
-        true
-      else
-        @nvidia_gpu_extension
-      end
+      vm_nvidia_gpu_extension.present? || @nvidia_gpu_extension
     end
 
   end
