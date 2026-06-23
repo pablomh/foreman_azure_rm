@@ -1,5 +1,4 @@
 require 'json'
-require 'ostruct'
 require 'uri'
 
 module ForemanAzureRm
@@ -32,7 +31,6 @@ module ForemanAzureRm
       @subscription_id = subscription_id
       env = AZURE_ENVIRONMENTS[azure_environment.downcase]
       raise ArgumentError, "Unknown Azure environment: #{azure_environment}" unless env
-
       @ad_login_url = env[:ad_login]
       @base_url = env[:resource_manager]
       @token = nil
@@ -41,6 +39,7 @@ module ForemanAzureRm
         proxy_uri: URI.parse(proxy_url || ENV['https_proxy'] || ENV['HTTPS_PROXY'] || ''),
         ssl_cert_store: ssl_cert_store
       )
+      @translator = AzureShapeTranslator.new
       @poller = AzureAsyncPoller.new { |url| authenticated_get(url) }
     end
 
@@ -68,7 +67,6 @@ module ForemanAzureRm
         results.concat(items)
         next_link = response.respond_to?(:next_link) ? response.next_link : nil
         break unless next_link
-
         path = URI.parse(next_link).request_uri
         params = {}
         api_version = nil
@@ -84,7 +82,7 @@ module ForemanAzureRm
       headers = auth_headers
       headers['Content-Type'] = 'application/json'
       headers['Accept'] = 'application/json'
-      serialized = body ? serialize_request(body) : nil
+      serialized = body ? @translator.serialize_request(body) : nil
 
       response = @transport.request(method: method, url: url, headers: headers, body: serialized)
       handle_response(response, method, url)
@@ -101,7 +99,6 @@ module ForemanAzureRm
       elsif response.redirect?
         redirect_url = response.header('Location')
         raise AzureApiError.new("Unexpected redirect to #{redirect_url}", response.status) unless redirect_url
-
         request(:get, redirect_url)
       elsif response.success?
         if response.header('Azure-AsyncOperation')
@@ -117,9 +114,8 @@ module ForemanAzureRm
 
     def parse_body(response)
       return nil if response.body.blank?
-
       json = JSON.parse(response.body)
-      normalize_response(json)
+      @translator.normalize_response(json)
     end
 
     def raise_api_error(response)
@@ -151,52 +147,7 @@ module ForemanAzureRm
       @transport.request(method: :get, url: url, headers: auth_headers, read_timeout: 30)
     end
 
-    def serialize_request(body)
-      JSON.dump(deep_to_h(body))
-    end
-
-    def normalize_response(json)
-      deep_open_struct(underscore_keys(json))
-    end
-
-    def underscore_keys(value)
-      case value
-      when Array
-        value.map { |item| underscore_keys(item) }
-      when Hash
-        value.each_with_object({}) do |(key, nested_value), result|
-          result[key.to_s.underscore] = underscore_keys(nested_value)
-        end
-      else
-        value
-      end
-    end
-
-    def deep_to_h(value)
-      case value
-      when OpenStruct
-        deep_to_h(value.to_h)
-      when Array
-        value.map { |item| deep_to_h(item) }
-      when Hash
-        value.each_with_object({}) do |(key, nested_value), result|
-          result[key] = deep_to_h(nested_value)
-        end
-      else
-        value
-      end
-    end
-
-    def deep_open_struct(value)
-      case value
-      when Array
-        value.map { |item| deep_open_struct(item) }
-      when Hash
-        OpenStruct.new(value.transform_values { |nested_value| deep_open_struct(nested_value) })
-      else
-        value
-      end
-    end
+    # --- Auth ---
 
     def ensure_token
       return if @token && Process.clock_gettime(Process::CLOCK_MONOTONIC) < @token_expires_at - 60
@@ -215,7 +166,6 @@ module ForemanAzureRm
         read_timeout: 30
       )
       raise AzureApiError.new("Token acquisition failed: #{response.body}", response.status) unless response.success?
-
       token_data = JSON.parse(response.body)
       @token = token_data['access_token']
       @token_expires_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) + token_data['expires_in'].to_i
