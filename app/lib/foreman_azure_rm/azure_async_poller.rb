@@ -29,36 +29,25 @@ module ForemanAzureRm
           handle_location_poll(last_response)&.tap { |result| return result }
         end
       end
-
       raise AzureApiError.new("Async operation timed out after #{MAX_POLL_SECONDS} seconds", 504)
     end
 
     private
 
     def handle_async_operation_poll(poll_response, resource_url, method)
-      unless poll_response.success?
-        raise AzureApiError.new("Async poll failed: HTTP #{poll_response.status} #{poll_response.body}", poll_response.status)
-      end
-
+      raise AzureApiError.new("Async poll failed: HTTP #{poll_response.status} #{poll_response.body}", poll_response.status) unless poll_response.success?
       poll_json = begin
         JSON.parse(poll_response.body)
       rescue JSON::ParserError, TypeError
         raise AzureApiError.new("Async poll returned non-JSON body: #{poll_response.body&.truncate(200)}", poll_response.status)
       end
-
       status = poll_json['status']
-      unless status
-        raise AzureApiError.new("Async poll response missing 'status' field: #{poll_response.body&.truncate(200)}", poll_response.status)
-      end
-
+      raise AzureApiError.new("Async poll response missing 'status' field: #{poll_response.body&.truncate(200)}", poll_response.status) unless status
       case status
       when 'Succeeded'
         return poll_response if method == :delete
-
         result = @authenticated_get.call(resource_url)
-        unless result.success?
-          raise AzureApiError.new("Final resource fetch failed after async Succeeded: HTTP #{result.status} #{result.body&.truncate(200)}", result.status)
-        end
+        raise AzureApiError.new("Final resource fetch failed after async Succeeded: HTTP #{result.status} #{result.body&.truncate(200)}", result.status) unless result.success?
         result
       when 'Failed', 'Canceled'
         raise AzureApiError.new("Async operation #{status}: #{poll_json.dig('error', 'message')}", 500)
